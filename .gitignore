@@ -1,0 +1,79 @@
+# ----------------------------
+# Python
+# ----------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyc.*
+*.py,cover
+*.so
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+
+# ----------------------------
+# VS Code
+# ----------------------------
+.vscode/
+*.code-workspace
+
+# ----------------------------
+# Logs & temp files
+# ----------------------------
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# ----------------------------
+# Data files (keep structure, ignore content)
+# ----------------------------
+data/*.mp4
+data/*.avi
+data/*.mov
+
+# Optional: allow sample file
+!data/.gitkeep
+
+# ----------------------------
+# Output files (IMPORTANT)
+# ----------------------------
+output/clips/
+output/*.json
+
+# Optional: keep empty folders
+!output/.gitkeep
+!output/clips/.gitkeep
+
+# ----------------------------
+# ML Models (large files)
+# ----------------------------
+*.pt
+*.pth
+*.onnx
+*.h5
+
+# ----------------------------
+# Cache / temp processing
+# ----------------------------
+*.cache
+.cache/
+temp/
+tmp/
+
+# ----------------------------
+# Jupyter (if you ever use)
+# ----------------------------
+.ipynb_checkpoints/
+
+# ----------------------------
+# Misc
+# ----------------------------
+*.zip
+*.tar
+*.gz
