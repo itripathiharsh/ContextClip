@@ -13,6 +13,8 @@ class SegmentBuilder:
     - Noise filtering
     """
 
+    PERSON_BRIDGE_GAP: float = 20.0
+
     def __init__(
         self,
         min_duration: float = 8.0,
@@ -36,6 +38,12 @@ class SegmentBuilder:
         self.segments: List[Dict] = []
         self.last_active_ts: Optional[float] = None
 
+    def _current_person_ratio(self) -> float:
+        if not self.current_segment:
+            return 0.0
+        seg = self.current_segment
+        return seg["person_frames"] / max(seg["total_frames"], 1)
+
     # -------------------------
     # PROCESS FRAME
     # -------------------------
@@ -47,11 +55,11 @@ class SegmentBuilder:
         is_active: bool
     ):
         if self.state == "IDLE":
-            if is_active:
+            if is_active or person_detected:
                 self._start_segment(timestamp, motion_score, person_detected)
 
         elif self.state == "ACTIVE":
-            if is_active:
+            if is_active or self._current_person_ratio() > 0.3:
                 self._update_segment(timestamp, motion_score, person_detected)
 
                 duration = timestamp - self.current_segment["start"]
@@ -65,12 +73,18 @@ class SegmentBuilder:
 
         elif self.state == "BRIDGE":
             gap = timestamp - (self.last_active_ts or timestamp)
+            active_override = is_active or person_detected or self._current_person_ratio() > 0.3
+            current_bridge_gap = (
+                self.PERSON_BRIDGE_GAP
+                if self._current_person_ratio() > 0
+                else self.bridge_gap
+            )
 
-            if is_active:
+            if active_override:
                 self.state = "ACTIVE"
                 self._update_segment(timestamp, motion_score, person_detected)
 
-            elif gap >= self.bridge_gap:
+            elif gap >= current_bridge_gap:
                 self._finalize_segment("gap_split")
 
     # -------------------------
@@ -101,8 +115,8 @@ class SegmentBuilder:
         if person_detected:
             seg["person_frames"] += 1
 
-        # ✅ FIX: track both motion + person activity
-        if person_detected or motion_score > 0:
+        # ✅ FIX: track both motion + person activity, with person override
+        if person_detected or motion_score > 0 or self._current_person_ratio() > 0.3:
             self.last_active_ts = timestamp
 
     # -------------------------
@@ -116,21 +130,28 @@ class SegmentBuilder:
 
         duration = seg["end"] - seg["start"]
 
-        # ❌ Drop very small clips
-        if duration < self.min_duration:
-            logger.debug(f"[Segment] DROPPED (too short): {duration:.2f}s")
-            self._reset_current()
-            return
-
         motion_avg = sum(seg["motion_scores"]) / len(seg["motion_scores"])
         person_ratio = seg["person_frames"] / max(seg["total_frames"], 1)
 
-        # ✅ FIX: Normalize motion score
+        effective_min_duration = self.min_duration
+        if person_ratio > 0.4:
+            effective_min_duration = max(effective_min_duration, 30.0)
+
+        # ❌ Drop very small clips
+        if duration < effective_min_duration:
+            logger.debug(
+                f"[Segment] DROPPED (too short): {duration:.2f}s "
+                f"(min={effective_min_duration:.0f}s)"
+            )
+            self._reset_current()
+            return
+
+        # ✅ Fix: Normalize motion score
         motion_normalized = min(motion_avg / 50.0, 1.0)
 
         meaningfulness_score = (
-            0.6 * motion_normalized +
-            0.4 * person_ratio
+            0.4 * motion_normalized +
+            0.6 * person_ratio
         )
 
         # ❌ Drop meaningless clips
